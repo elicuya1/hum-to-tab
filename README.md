@@ -1,4 +1,4 @@
-# 🎸 hum-to-tab
+# hum-to-tab
 
 Turn humming and audio recordings into guitar tabs.
 
