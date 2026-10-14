@@ -1,40 +1,62 @@
 # hum-to-tab
 
-Turn humming and audio recordings into guitar tabs.
+Turn humming and audio recordings into guitar tabs, including slides, bends and hammer-ons.
 
-Hum a melody, record it as a `.wav` file, and hum-to-tab works out which notes you sang and where to play them on the guitar.
+Hum a melody or play a riff, and hum-to-tab works out which notes you played, how you played them, and every place on the neck you could play them.
 
 ```
-Notes: E3 G3 A3 B3 A3 G3 E3
+Notes: A3 C4 D4 C4 A3 D4 D4 A3 C4 A3 E3 E3
 
-e|---------------|
-B|-------0-------|
-G|---0-2---2-0---|
-D|-2-----------2-|
-A|---------------|
-E|---------------|
+Box 1 (frets 2-7)
+e|------------------------------|
+B|------------------------------|
+G|---5h7p5-2/7-7b9r7----5\2-----|
+D|-7-----------------7~---------|
+A|--------------------------7-7-|
+E|------------------------------|
+
+Box 2 (frets 7-12)
+e|------------------------------------------|
+B|------------------------------------------|
+G|------------------------------------------|
+D|----10h12p10-7/12-12b14r12-----10\7-------|
+A|-12------------------------12~------------|
+E|------------------------------------12-12-|
 ```
 
 ## Features
 
-- **Pitch detection.** Finds the notes in a recording of a single melody (humming, singing, or one instrument).
-- **Smart fret choice.** Picks positions close to each other so the result is comfortable to play.
-- **Out-of-range notes.** Shifts notes that are too high or too low for a guitar by an octave.
-- **Desktop app.** Open a file, see the tab, and copy it with one click.
+- **Note detection that copes with real voices.** Corrects for singing a little sharp or flat, smooths out wobble, and spots when the same note is sung or picked twice.
+- **Techniques.** Recognises hammer-ons (`h`), pull-offs (`p`), slides (`/` and `\`), bends (`b`), bend releases (`r`) and vibrato (`~`).
+- **Every box on the neck.** Shows each position where the riff fits, from the open position up the neck, with the easiest fingering in each.
+- **Record straight into the app** from your microphone, or open a `.wav` file.
+- **Play it back.** Hear the detected notes, slides and bends to check the result by ear.
 
 ## How it works
 
-1. **Detect the pitch.** The audio is split into tiny slices (about 23 ms each), and [librosa](https://librosa.org)'s pYIN algorithm estimates the frequency of each slice.
-2. **Turn frequencies into notes.** Each frequency is converted to the nearest note name (440 Hz → A4). Consecutive slices with the same note are grouped together, and blips shorter than 0.1 s are ignored.
-3. **Map notes to the fretboard.** For each note, every string where it can be played is considered, and the fret closest to the previous one is chosen.
-4. **Draw the tab.** The fret numbers are written onto six lines of ASCII tab, one per string.
+1. **Track the pitch.** [librosa](https://librosa.org)'s pYIN algorithm measures the pitch about 86 times a second.
+2. **Correct the tuning.** If the whole recording is a bit sharp or flat, everything is shifted back into tune.
+3. **Find the notes.** Notes are stretches where the pitch sits steadily on one note. Short wobbles are ignored, and brief pauses on the way through a slow slide or bend are not counted as notes.
+4. **Find the picks.** A sudden jump in volume means a new pick (or a new sung note).
+5. **Work out the technique** from what happens between two notes:
+
+   | Between the notes | Result |
+   |---|---|
+   | A new pick | Separate notes |
+   | The pitch jumps instantly, no pick | Hammer-on (up) or pull-off (down) |
+   | The pitch glides up 1–2 semitones | Bend, and gliding back down is the release |
+   | The pitch glides further, or down | Slide |
+   | A steady wobble 3–9 times a second | Vibrato |
+
+6. **Find the boxes.** For each hand position on the neck, the easiest fingering is worked out (like a sat-nav finding the cheapest route). Hammer-ons, pull-offs and slides are kept on one string, and open strings are only used in the open position. Positions where the riff really fits are kept.
+7. **Draw the tab.**
 
 ## Getting started
 
 You need **Python 3.10 or newer**. Install the libraries with:
 
 ```
-pip install numpy librosa soundfile
+pip install numpy scipy librosa soundfile sounddevice
 ```
 
 Then download this project (green **Code** button → **Download ZIP**, or clone it).
@@ -47,47 +69,58 @@ Then download this project (green **Code** button → **Download ZIP**, or clone
 python app.py
 ```
 
-Click **Open audio file...**, choose a `.wav` file, and the tab appears. Click **Copy tab** to paste it anywhere.
+- **● Record**: click, hum or play, then click **■ Stop**. The tab appears.
+- **Open audio file...**: pick a `.wav` file instead.
+- **▶ Play notes**: hear what was detected.
+- **Copy tab**: copy everything to paste anywhere.
 
 ### Command line
 
 ```
-python tab.py
+python tab.py my_recording.wav       # the tab, in every box
+python detect.py my_recording.wav    # the notes, with timings and techniques
 ```
 
-This prints the tab for `test_melody.wav`. To use your own recording, change the file name at the bottom of `tab.py`.
+### Tips for good results
 
-### Recording your own humming
-
-1. Record yourself with a free tool like [Audacity](https://www.audacityteam.org).
-2. Export as WAV (**File → Export → Export as WAV**).
-3. Open it in the app.
-
-For the best results:
-- **Hum slowly,** with a clear break between notes.
+- **One note at a time.** Chords aren't supported.
+- **Separate your notes** when humming, like "da da da", unless you mean to slide.
 - **Record somewhere quiet.**
-- **Stick to one note at a time.** Chords aren't supported.
+
+### Trying the test recordings
+
+```
+python make_test_audio.py
+```
+
+This creates three recordings where the right answer is known: `test_melody.wav` (clean beeps), `test_articulations.wav` (a riff with every technique) and `test_humming.wav` (a wobbly, slightly flat hum).
 
 ## Project structure
 
 | File | What it does |
 |---|---|
-| `notes.py` | Converts a frequency in Hz to a note name |
-| `detect.py` | Finds the sequence of notes in an audio file |
-| `tab.py` | Chooses fret positions and draws the tab |
+| `notes.py` | Note names, and converting a frequency to a note |
+| `detect.py` | Finds the notes and techniques in a recording |
+| `tab.py` | Finds the boxes on the neck and draws the tab |
+| `playback.py` | Turns notes back into sound |
 | `app.py` | The desktop window (built with tkinter) |
-| `make_test_audio.py` | Generates `test_melody.wav`, a test file with known notes |
+| `make_test_audio.py` | Creates the test recordings |
 
 ## Limitations
 
-- **One note at a time.** Recordings with chords, several instruments, or a full band won't work.
-- **No rhythm yet.** The tab shows which notes to play, not how long to hold each one.
+- **One note at a time.** Recordings with chords or a full band won't work.
+- **No rhythm yet.** The tab shows which notes to play, not how long to hold them.
+- **Bend or slide?** A small glide up is read as a bend, but on guitar it could also be a short slide.
 - **WAV files only.**
-- **Real humming is messy.** Expect the odd extra or split note.
+- **Very noisy recordings** can miss quiet notes or techniques.
 
 ## Roadmap
 
-- [ ] Record humming directly from the microphone
+- [x] Record directly from the microphone
+- [x] Play back the detected notes
+- [x] Recognise hammer-ons, pull-offs, slides, bends and vibrato
+- [x] Show every box on the neck
+- [ ] Live tuner mode
 - [ ] Show note durations in the tab
 - [ ] Support MP3 and other audio formats
 - [ ] Export the tab to a text file
